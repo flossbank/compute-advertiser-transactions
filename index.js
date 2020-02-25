@@ -124,7 +124,7 @@ exports.handler = async () => {
     }
   ];
 
-  // TODO: still need to update the last billed time on the advertiser
+  // TODO: still need to update the last billed time on the advertiser and update the transaction description
 
   const { customerId, totalBill, _id } = (await db.collection(ADVERTISER_COLLECTION)
     .aggregate(aggregationPipline)
@@ -137,6 +137,8 @@ exports.handler = async () => {
     {
       amount: totalBill * 1000, // Turn microcents to cents
       currency: 'usd',
+      // TODO fix these date inputs.
+      description: 'Flossbank bill for Ad Campaign impressions from <date> to <date>'
     }
   );
 }

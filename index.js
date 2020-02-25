@@ -110,7 +110,7 @@ exports.handler = async () => {
         'customerId': 1, 
         'amountToBill': {
           '$multiply': [
-            '$totalImpressions', '$cpm'
+            '$totalImpressions', '$cpm', 0.001
           ]
         }
       }

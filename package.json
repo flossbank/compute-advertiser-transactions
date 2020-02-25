@@ -1,0 +1,27 @@
+{
+  "name": "update-advertiser-balances",
+  "version": "1.0.0",
+  "description": "update-advertiser-balances",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.543.0",
+    "mongodb": "^3.4.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flossbank/update-advertiser-balances.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/flossbank/update-advertiser-balances/issues"
+  },
+  "homepage": "https://github.com/flossbank/update-advertiser-balances#readme",
+  "devDependencies": {
+    "standard": "^14.3.1"
+  }
+}

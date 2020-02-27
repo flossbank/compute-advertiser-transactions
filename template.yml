@@ -1,21 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Distributes funds pooled from donations or unsupported registries to all packages
+Description: Updates advertiser balances in stripe given their campaign impressions from the past period
 Parameters:
   MongoUri:
     Type: AWS::SSM::Parameter::Value<String>
     Default: '/api/db/mongo_uri'
+  StripeSecretKey:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: '/api/stripe/secret_key'
 Resources:
   DistributePooledFundsFunction:
     Type: AWS::Serverless::Function
     Properties:
       Events: 
-        DPFSchedule:
+        UABSchedule:
           Properties:
-            Description: Every 24 hours
+            Description: Every week
             Enabled: true
-            Name: DistributePooledFundsSchedule
-            Schedule: rate(24 hours)
+            Name: UpdateAdvertiserBalanceSchedule
+            Schedule: rate(7 days)
           Type: Schedule
       Timeout: 180
       Handler: index.handler
@@ -31,3 +34,4 @@ Resources:
       Environment:
         Variables:
           MONGO_URI: !Ref MongoUri
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey

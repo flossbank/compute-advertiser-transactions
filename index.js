@@ -116,7 +116,8 @@ exports.handler = async () => {
       }
     }, {
       '$group': { // group all bills for an advertiser into one totalBill (micro cents)
-        '_id': '$advertiserId', 
+        '_id': '$advertiserId',
+        'customerId': { '$first': '$customerId' }, 
         'totalBill': {
           '$sum': '$amountToBill'
         }

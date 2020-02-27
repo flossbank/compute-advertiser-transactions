@@ -125,21 +125,25 @@ exports.handler = async () => {
     }
   ];
 
-  // TODO: still need to update the last billed time on the advertiser and update the transaction description
-
-  const { customerId, totalBill, _id } = (await db.collection(ADVERTISER_COLLECTION)
+  const advertisers = (await db.collection(ADVERTISER_COLLECTION)
     .aggregate(aggregationPipline)
     .toArray())
-    .pop()
 
-  // Write to stripe balance
-  await stripe.customers.createBalanceTransaction(
-    customerId,
-    {
-      amount: totalBill * 1000, // Turn microcents to cents
-      currency: 'usd',
-      // TODO fix these date inputs.
-      description: 'Flossbank bill for Ad Campaign impressions from <date> to <date>'
+  for (let advertiser of advertisers) {
+    try {
+      // Write to stripe balance
+      await stripe.customers.createBalanceTransaction(
+        advertiser.customerId,
+        {
+          amount: advertiser.totalBill * 1000, // Turn microcents to cents
+          currency: 'usd',
+          // TODO fix these date inputs.
+          description: 'Flossbank bill for Ad Campaign impressions from <date> to <date>'
+        }
+      )
+      // TODO: update the last billed time on the advertiser
+    } catch (e) {
+      // do not update the last billed field for this advertiser id
     }
-  );
+  }
 }

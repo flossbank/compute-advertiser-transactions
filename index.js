@@ -1,5 +1,5 @@
 const aws = require('aws-sdk')
-const { MongoClient } = require('mongodb')
+const { MongoClient, ObjectId } = require('mongodb')
 
 const MONGO_DB = 'flossbank_db'
 const ADVERTISER_COLLECTION = 'advertisers'
@@ -30,97 +30,23 @@ exports.handler = async () => {
   const db = mongoClient.db(MONGO_DB)
   const stripe = require('stripe')(stripeKey);
 
-  // get verified advertisers
-  // go through each campaign in each advertiser
-  // go through each ad in each campaign
-  // get number of impressions in past 7 days and multiply times ad campaign CPM 
-  // sum that with all other ad impressions for campaign
-  // sum that with all other costs of each campaign for advertiser
-  // set the last date that we've last charged for impressions 
-  //
-  // return array of [advertiserStripeId, amountSpentIn7Days][]
-
-  /** (size of (ads.impressions, where date > lastChargedDate)) * adCampaign.cpm  */
+  // return advertiserId, stripeCustomerId, and amountToBill
 
   const aggregationPipline = [
     {
       '$match': {
-        'verified': true, // Only take verified advertisers and ones where billing customer id exists
+        'verified': true,
         'billingInfo.customerId': {
+          '$exists': true
+        },
+        'billingInfo.amountOwed': {
           '$exists': true
         }
       }
     }, {
       '$project': {
-        'adCampaigns': 1, // grab the adcampaigns
-        'customerId': '$billingInfo.customerId'
-      }
-    }, {
-      '$unwind': { // Unwind all the adcampaigns for active advertisers
-        'path': '$adCampaigns', 
-        'preserveNullAndEmptyArrays': false
-      }
-    }, {
-      '$project': { // snag the ads for each ad campaign as well as capture the cpm
-        'adCampaignId': '$adCampaigns.id', 
-        'ads': '$adCampaigns.ads', 
-        'cpm': '$adCampaigns.cpm',
-        'customerId': '1'
-      }
-    }, {
-      '$unwind': { // unwind all ads 
-        'path': '$ads', 
-        'preserveNullAndEmptyArrays': false
-      }
-    }, {
-      '$project': { // grab the info we need, which is adcampaignId, cpm, and impressions > last billed date
-        'adCampaignId': 1, 
-        'cpm': 1, 
-        'customerId': 1,
-        'impressions': {
-          '$filter': {
-            'input': '$ads.impressions', 
-            'cond': {
-              '$gt': [
-                '$$this.timestamp', 1580013845522
-              ]
-            }
-          }
-        }
-      }
-    }, {
-      '$group': { // group the impressions into a number we can sum
-        '_id': '$adCampaignId', 
-        'advertiserId': {
-          '$first': '$_id'
-        }, 
-        'customerId': { '$first': '$customerId' },
-        'totalImpressions': {
-          '$sum': {
-            '$size': '$impressions'
-          }
-        }, 
-        'cpm': {
-          '$first': '$cpm'
-        }
-      }
-    }, {
-      '$project': { // Project to get the amount to bill per adcampaign
-        'advertiserId': 1,
-        'customerId': 1, 
-        'amountToBill': {
-          '$multiply': [
-            '$totalImpressions', '$cpm', 0.001
-          ]
-        }
-      }
-    }, {
-      '$group': { // group all bills for an advertiser into one totalBill (micro cents)
-        '_id': '$advertiserId',
-        'customerId': { '$first': '$customerId' }, 
-        'totalBill': {
-          '$sum': '$amountToBill'
-        }
+        'customerId': '$billingInfo.customerId',
+        'amountToBill': '$billingInfo.amountOwed'
       }
     }
   ];
@@ -135,13 +61,14 @@ exports.handler = async () => {
       await stripe.customers.createBalanceTransaction(
         advertiser.customerId,
         {
-          amount: advertiser.totalBill * 1000, // Turn microcents to cents
+          amount: advertiser.amountToBill / 1000, // Turn microcents to cents
           currency: 'usd',
-          // TODO fix these date inputs.
-          description: 'Flossbank bill for Ad Campaign impressions from <date> to <date>'
+          description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
         }
       )
-      // TODO: update the last billed time on the advertiser
+      await db.collection(ADVERTISER_COLLECTION).updateOne({
+        _id: ObjectId(advertiser._id)
+      }, { $set: { 'billingInfo.amountOwed': 0 }})
     } catch (e) {
       // do not update the last billed field for this advertiser id
     }

@@ -1,6 +1,6 @@
 const aws = require('aws-sdk')
 const { MongoClient, ObjectId } = require('mongodb')
-const Bottleneck = require('bottleneck/es5')
+const Bottleneck = require('bottleneck')
 
 const MONGO_DB = 'flossbank_db'
 const ADVERTISER_COLLECTION = 'advertisers'
@@ -75,13 +75,17 @@ exports.handler = async () => {
       )
       bulkUpdates.updateOne({
         _id: ObjectId(advertiser._id)
-      }, { $set: { 'billingInfo.amountOwed': 0 }})
-    } catch (e) {}
+      }, { $inc: { 'billingInfo.amountOwed': (0-advertiser.amountToBill) }})
+    } catch (e) {
+      console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${advertiser.amountToBill}, error:`, e.message)
+    }
   }))
 
   limiter.schedule(() => {
     return Promise.all(promises)
   }).then(() => {
     await bulkUpdates.execute()
+  }).catch((e) => {
+    console.log('ERROR updating stripe balance promise.all', e.message)
   })
 }

@@ -1,5 +1,6 @@
 const aws = require('aws-sdk')
 const { MongoClient, ObjectId } = require('mongodb')
+const Bottleneck = require('bottleneck/es5')
 
 const MONGO_DB = 'flossbank_db'
 const ADVERTISER_COLLECTION = 'advertisers'
@@ -23,14 +24,17 @@ const getStripe = async () => {
   return decrypt(process.env.STRIPE_SECRET_KEY)
 }
 
-// This lambda should get called every 7 days to update the stripe balance
+const limiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 333
+})
+
+// This lambda should get called every 7 days to update the stripe balance for each advertiser
 exports.handler = async () => {
   const mongoClient = await getMongoClient()
   const stripeKey = await getStripe()
   const db = mongoClient.db(MONGO_DB)
   const stripe = require('stripe')(stripeKey);
-
-  // return advertiserId, stripeCustomerId, and amountToBill
 
   const aggregationPipline = [
     {
@@ -55,22 +59,29 @@ exports.handler = async () => {
     .aggregate(aggregationPipline)
     .toArray())
 
+  const promises = []
+
+  const bulkUpdates = db.collection(ADVERTISER_COLLECTION).initializeUnorderedBulkOp()
+
   for (let advertiser of advertisers) {
-    try {
-      // Write to stripe balance
-      await stripe.customers.createBalanceTransaction(
-        advertiser.customerId,
-        {
-          amount: advertiser.amountToBill / 1000, // Turn microcents to cents
-          currency: 'usd',
-          description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
-        }
-      )
-      await db.collection(ADVERTISER_COLLECTION).updateOne({
-        _id: ObjectId(advertiser._id)
-      }, { $set: { 'billingInfo.amountOwed': 0 }})
-    } catch (e) {
-      // do not update the last billed field for this advertiser id
-    }
+    promises.push(stripe.customers.createBalanceTransaction(
+      advertiser.customerId,
+      {
+        amount: advertiser.amountToBill / 1000, // Turn microcents to cents
+        currency: 'usd',
+        description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
+      }
+    ))
+    bulkUpdates.updateOne({
+      _id: ObjectId(advertiser._id)
+    }, { $set: { 'billingInfo.amountOwed': 0 }})
   }
+
+  limiter.schedule(() => {
+    return Promise.all(promises);
+  }).then(() => {
+    await bulkUpdates.execute()
+  }).catch((e) => {
+    // TODO: log that we failed and why / how 
+  })
 }

@@ -63,25 +63,25 @@ exports.handler = async () => {
 
   const bulkUpdates = db.collection(ADVERTISER_COLLECTION).initializeUnorderedBulkOp()
 
-  for (let advertiser of advertisers) {
-    promises.push(stripe.customers.createBalanceTransaction(
-      advertiser.customerId,
-      {
-        amount: advertiser.amountToBill / 1000, // Turn microcents to cents
-        currency: 'usd',
-        description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
-      }
-    ))
-    bulkUpdates.updateOne({
-      _id: ObjectId(advertiser._id)
-    }, { $set: { 'billingInfo.amountOwed': 0 }})
-  }
+  promises.push(advertisers.map(async (advertiser) => {
+    try {
+      await stripe.customers.createBalanceTransaction(
+        advertiser.customerId,
+        {
+          amount: advertiser.amountToBill / 1000, // Turn microcents to cents
+          currency: 'usd',
+          description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
+        }
+      )
+      bulkUpdates.updateOne({
+        _id: ObjectId(advertiser._id)
+      }, { $set: { 'billingInfo.amountOwed': 0 }})
+    } catch (e) {}
+  }))
 
   limiter.schedule(() => {
-    return Promise.all(promises);
+    return Promise.all(promises)
   }).then(() => {
     await bulkUpdates.execute()
-  }).catch((e) => {
-    // TODO: log that we failed and why / how 
   })
 }

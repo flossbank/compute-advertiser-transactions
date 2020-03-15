@@ -73,9 +73,7 @@ exports.handler = async () => {
           description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
         }
       )
-      bulkUpdates.updateOne({
-        _id: ObjectId(advertiser._id)
-      }, { $inc: { 'billingInfo.amountOwed': -advertiser.amountToBill }})
+      bulkUpdates.find({ _id: ObjectId(advertiser._id) }).updateOne({ $inc: { 'billingInfo.amountOwed': -advertiser.amountToBill }})
     } catch (e) {
       console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${advertiser.amountToBill}, error:`, e.message)
     }

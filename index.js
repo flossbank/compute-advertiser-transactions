@@ -59,33 +59,37 @@ exports.handler = async () => {
     .aggregate(aggregationPipline)
     .toArray())
 
-  const promises = []
-
   const bulkUpdates = db.collection(ADVERTISER_COLLECTION).initializeUnorderedBulkOp()
+  let shouldUpdateMongo = false // Need a flag because potentially no operations could be ran, and bulk update throws in that case
 
-  promises.push(advertisers.map(async (advertiser) => {
+  const promises = advertisers.map(async (advertiser) => {
     try {
-      await stripe.customers.createBalanceTransaction(
-        advertiser.customerId,
-        {
-          amount: advertiser.amountToBill / 1000, // Turn microcents to cents
-          currency: 'usd',
-          description: `Flossbank advertiser ${advertiser._id} billed for $${advertiser.amountToBill / 1000 / 100}`
-        }
-      )
-      bulkUpdates.find({ _id: ObjectId(advertiser._id) }).updateOne({ $inc: { 'billingInfo.amountOwed': -advertiser.amountToBill }})
+      const remainderCents = advertiser.amountToBill % 1000
+      const debtWithoutRemainder = advertiser.amountToBill - remainderCents
+      if (debtWithoutRemainder >= 1000) { // Only charge the advertiser if debts >= 1 cent (1000 microcents)
+        shouldUpdateMongo = true
+        await stripe.customers.createBalanceTransaction(
+          advertiser.customerId,
+          {
+            amount: debtWithoutRemainder / 1000, // Turn microcents to cents
+            currency: 'usd',
+            description: `Flossbank advertising bill for: ${debtWithoutRemainder / 1000} cents`
+          }
+        )
+        bulkUpdates.find({ _id: ObjectId(advertiser._id) }).updateOne({ $inc: { 'billingInfo.amountOwed': -debtWithoutRemainder }})
+      }
     } catch (e) {
-      console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${advertiser.amountToBill}, error:`, e.message)
+      console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${debtWithoutRemainder}, error:`, e.message)
     }
-  }))
+  })
 
-  limiter.schedule(() => {
+  return limiter.schedule(() => {
     return Promise.all(promises)
-  }).then(() => {
-    await bulkUpdates.execute()
+  }).then(async () => {
+    if (shouldUpdateMongo) await bulkUpdates.execute()
   }).catch((e) => {
     console.log('ERROR updating stripe balance promise.all', e.message)
-  }).finally(() => {
+  }).finally(async () => {
     await mongoClient.close()
   })
 }

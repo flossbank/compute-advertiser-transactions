@@ -1,5 +1,6 @@
 const aws = require('aws-sdk')
-const { MongoClient } = require('mongodb')
+const { MongoClient, ObjectId } = require('mongodb')
+const Bottleneck = require('bottleneck')
 
 const MONGO_DB = 'flossbank_db'
 const ADVERTISER_COLLECTION = 'advertisers'
@@ -23,123 +24,73 @@ const getStripe = async () => {
   return decrypt(process.env.STRIPE_SECRET_KEY)
 }
 
-// This lambda should get called every 7 days to update the stripe balance
+const limiter = new Bottleneck({
+  maxConcurrent: 1,
+  minTime: 333
+})
+
+// This lambda should get called every 7 days to update the stripe balance for each advertiser
 exports.handler = async () => {
   const mongoClient = await getMongoClient()
   const stripeKey = await getStripe()
   const db = mongoClient.db(MONGO_DB)
   const stripe = require('stripe')(stripeKey);
 
-  // get verified advertisers
-  // go through each campaign in each advertiser
-  // go through each ad in each campaign
-  // get number of impressions in past 7 days and multiply times ad campaign CPM 
-  // sum that with all other ad impressions for campaign
-  // sum that with all other costs of each campaign for advertiser
-  // set the last date that we've last charged for impressions 
-  //
-  // return array of [advertiserStripeId, amountSpentIn7Days][]
-
-  /** (size of (ads.impressions, where date > lastChargedDate)) * adCampaign.cpm  */
-
   const aggregationPipline = [
     {
       '$match': {
-        'verified': true, // Only take verified advertisers and ones where billing customer id exists
+        'verified': true,
         'billingInfo.customerId': {
+          '$exists': true
+        },
+        'billingInfo.amountOwed': {
           '$exists': true
         }
       }
     }, {
       '$project': {
-        'adCampaigns': 1, // grab the adcampaigns
-        'customerId': '$billingInfo.customerId'
-      }
-    }, {
-      '$unwind': { // Unwind all the adcampaigns for active advertisers
-        'path': '$adCampaigns', 
-        'preserveNullAndEmptyArrays': false
-      }
-    }, {
-      '$project': { // snag the ads for each ad campaign as well as capture the cpm
-        'adCampaignId': '$adCampaigns.id', 
-        'ads': '$adCampaigns.ads', 
-        'cpm': '$adCampaigns.cpm',
-        'customerId': '1'
-      }
-    }, {
-      '$unwind': { // unwind all ads 
-        'path': '$ads', 
-        'preserveNullAndEmptyArrays': false
-      }
-    }, {
-      '$project': { // grab the info we need, which is adcampaignId, cpm, and impressions > last billed date
-        'adCampaignId': 1, 
-        'cpm': 1, 
-        'customerId': 1,
-        'impressions': {
-          '$filter': {
-            'input': '$ads.impressions', 
-            'cond': {
-              '$gt': [
-                '$$this.timestamp', 1580013845522
-              ]
-            }
-          }
-        }
-      }
-    }, {
-      '$group': { // group the impressions into a number we can sum
-        '_id': '$adCampaignId', 
-        'advertiserId': {
-          '$first': '$_id'
-        }, 
-        'customerId': { '$first': '$customerId' },
-        'totalImpressions': {
-          '$sum': {
-            '$size': '$impressions'
-          }
-        }, 
-        'cpm': {
-          '$first': '$cpm'
-        }
-      }
-    }, {
-      '$project': { // Project to get the amount to bill per adcampaign
-        'advertiserId': 1,
-        'customerId': 1, 
-        'amountToBill': {
-          '$multiply': [
-            '$totalImpressions', '$cpm', 0.001
-          ]
-        }
-      }
-    }, {
-      '$group': { // group all bills for an advertiser into one totalBill (micro cents)
-        '_id': '$advertiserId',
-        'customerId': { '$first': '$customerId' }, 
-        'totalBill': {
-          '$sum': '$amountToBill'
-        }
+        'customerId': '$billingInfo.customerId',
+        'amountToBill': '$billingInfo.amountOwed'
       }
     }
   ];
 
-  // TODO: still need to update the last billed time on the advertiser and update the transaction description
-
-  const { customerId, totalBill, _id } = (await db.collection(ADVERTISER_COLLECTION)
+  const advertisers = (await db.collection(ADVERTISER_COLLECTION)
     .aggregate(aggregationPipline)
     .toArray())
-    .pop()
 
-  // Write to stripe balance
-  await stripe.customers.createBalanceTransaction(
-    customerId,
-    {
-      amount: totalBill * 1000, // Turn microcents to cents
-      currency: 'usd',
-      // TODO fix these date inputs.
-      description: 'Flossbank bill for Ad Campaign impressions from <date> to <date>'
+  const bulkUpdates = db.collection(ADVERTISER_COLLECTION).initializeUnorderedBulkOp()
+  let shouldUpdateMongo = false // Need a flag because potentially no operations could be ran, and bulk update throws in that case
+
+  const promises = advertisers.map(async (advertiser) => {
+    try {
+      // Get the 1000 remainder because we can't send fractions of cents in the bill to stripe
+      const remainderCents = advertiser.amountToBill % 1000
+      const debtWithoutRemainder = advertiser.amountToBill - remainderCents
+      if (debtWithoutRemainder >= 1000) { // Only charge the advertiser if debts >= 1 cent (1000 microcents)
+        shouldUpdateMongo = true
+        await stripe.customers.createBalanceTransaction(
+          advertiser.customerId,
+          {
+            amount: debtWithoutRemainder / 1000, // Turn microcents to cents
+            currency: 'usd',
+            description: `Flossbank advertising bill for: ${debtWithoutRemainder / 1000} cents`
+          }
+        )
+        bulkUpdates.find({ _id: ObjectId(advertiser._id) }).updateOne({ $inc: { 'billingInfo.amountOwed': -debtWithoutRemainder }})
+      }
+    } catch (e) {
+      console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${debtWithoutRemainder}, error:`, e.message)
     }
-  );
+  })
+
+  return limiter.schedule(() => {
+    return Promise.all(promises)
+  }).then(async () => {
+    if (shouldUpdateMongo) await bulkUpdates.execute()
+  }).catch((e) => {
+    console.log('ERROR updating stripe balance promise.all', e.message)
+  }).finally(async () => {
+    await mongoClient.close()
+  })
 }

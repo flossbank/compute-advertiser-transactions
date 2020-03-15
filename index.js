@@ -75,7 +75,7 @@ exports.handler = async () => {
       )
       bulkUpdates.updateOne({
         _id: ObjectId(advertiser._id)
-      }, { $inc: { 'billingInfo.amountOwed': (0-advertiser.amountToBill) }})
+      }, { $inc: { 'billingInfo.amountOwed': -advertiser.amountToBill }})
     } catch (e) {
       console.log(`ERROR updating stripe balance advertiser_id: ${advertiser._id}, amount: ${advertiser.amountToBill}, error:`, e.message)
     }
@@ -87,5 +87,7 @@ exports.handler = async () => {
     await bulkUpdates.execute()
   }).catch((e) => {
     console.log('ERROR updating stripe balance promise.all', e.message)
+  }).finally(() => {
+    await mongoClient.close()
   })
 }

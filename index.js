@@ -64,6 +64,7 @@ exports.handler = async () => {
 
   const promises = advertisers.map(async (advertiser) => {
     try {
+      // Get the 1000 remainder because we can't send fractions of cents in the bill to stripe
       const remainderCents = advertiser.amountToBill % 1000
       const debtWithoutRemainder = advertiser.amountToBill - remainderCents
       if (debtWithoutRemainder >= 1000) { // Only charge the advertiser if debts >= 1 cent (1000 microcents)

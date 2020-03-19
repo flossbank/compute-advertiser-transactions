@@ -17,7 +17,7 @@ Resources:
           Properties:
             Description: Every week
             Enabled: true
-            Name: UpdateAdvertiserBalanceSchedule
+            Name: UpdateAdvertiserBalancesSchedule
             Schedule: rate(7 days)
           Type: Schedule
       Timeout: 180

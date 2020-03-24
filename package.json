@@ -4,7 +4,8 @@
   "description": "update-advertiser-balances",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "ci-tests": "nyc --reporter=cobertura ava -t | tap-xunit > TEST_RESULTS.xml",
+    "test": "ava -v"
   },
   "dependencies": {
     "aws-sdk": "^2.543.0",
@@ -24,6 +25,10 @@
   },
   "homepage": "https://github.com/flossbank/update-advertiser-balances#readme",
   "devDependencies": {
-    "standard": "^14.3.1"
+    "ava": "^3.5.1",
+    "nyc": "^15.0.0",
+    "sinon": "^9.0.1",
+    "standard": "^14.3.1",
+    "tap-xunit": "^2.4.1"
   }
 }

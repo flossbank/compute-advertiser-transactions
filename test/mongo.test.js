@@ -1,37 +1,25 @@
 const test = require('ava')
 const sinon = require('sinon')
-const { MongoClient } = require('mongodb')
+const { MongoClient, ObjectId } = require('mongodb')
 const Mongo = require('../lib/mongo')
 
 test.beforeEach((t) => {
   t.context.mongo = new Mongo({
     config: {
       getMongoUri: async () => 'mongodb+srv://0.0.0.0/test'
-    },
-    stripe: () => ({
-      customers: {
-        createBalanceTransaction: () => Promise.resolve()
-      }
-    }),
-    stripeKey: 'test-stripe-key',
-    limiter: {
-      schedule: async (cb) => {
-        await cb()
-        Promise.resolve()
-      }
-    },
+    }
   })
   t.context.mongo.db = {
     collection: sinon.stub().returns({
       aggregate: sinon.stub().returns({
-        toArray: sinon.stub().resolves([{ // advertisers with customer ids and amount owed
+        toArray: sinon.stub().resolves([{
           _id: null,
-          amountToBill: 1000000, // 10 bucks in microcents
+          amountToBill: 1000000,
           customerId: 'kilua'
         },
         {
           _id: null,
-          amountToBill: 500000, // 5 bucks in microcents
+          amountToBill: 500000,
           customerId: 'gon'
         }])
       }),
@@ -63,76 +51,33 @@ test('close', async (t) => {
   t.true(t.context.mongo.mongoClient.close.calledOnce)
 })
 
-test('update advertiser balances | nothing to charge', async (t) => {
-  t.context.mongo.db.collection().aggregate().toArray.resolves([])
-  const res = await t.context.mongo.updateAdvertiserBalances()
-  t.is(res.error, false)
-  t.is(res.advertisersWhoOwe, 0)
-  t.is(res.advertisersToBill, 0)
-  t.is(res.advertisersUpdated, 0)
+test('get owing advertisers | calls mongo', async (t) => {
+  await t.context.mongo.getOwingAdvertisers()
+  t.true(t.context.mongo.db.collection().aggregate().toArray.calledOnce)
 })
 
-test('update advertiser balances | none owe more than a dollar', async (t) => {
-  t.context.mongo.db.collection().aggregate().toArray.resolves([{ 
-    _id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-    amountToBill: 999, // 99 microcents
-    customerId: 'kilua'
-  },
-  {
-    _id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-    amountToBill: 10, // 10 microcents
-    customerId: 'gon'
-  }])
-  const res = await t.context.mongo.updateAdvertiserBalances()
-  t.is(res.error, false)
-  t.is(res.advertisersWhoOwe, 2)
-  t.is(res.advertisersToBill, 0)
-  t.is(res.advertisersUpdated, 0)
+test('update advertiser balances | nothing to update', async (t) => {
+  const advertisersBilled = new Map()
+  t.is(await t.context.mongo.updateAdvertiserBalances(advertisersBilled), 0)
 })
 
-test('update advertiser balances | promise all throws', async (t) => {
-  t.context.mongo.db.collection().initializeUnorderedBulkOp().find.throws()
-  const res = await t.context.mongo.updateAdvertiserBalances()
-  t.is(res.error, true)
-  t.is(res.advertisersWhoOwe, 2)
-  t.is(res.advertisersToBill, 2)
-  t.is(res.advertisersUpdated, 0)
-})
+test('update advertiser balances | bulk updates', async (t) => {
+  const advertisersBilled = new Map()
+  advertisersBilled.set('aaaaaaaaaaaaaaaaaaaaaaaa', 1000)
+  advertisersBilled.set('aaaaaaaaaaaaaaaaaaaaaaab', 2000)
 
-test('update advertiser balances | updates balances succesfully', async (t) => {
-  const res = await t.context.mongo.updateAdvertiserBalances()
-  t.is(res.error, false)
-  t.is(res.advertisersWhoOwe, 2)
-  t.is(res.advertisersToBill, 2)
-  t.is(res.advertisersUpdated, 2)
+  t.is(await t.context.mongo.updateAdvertiserBalances(advertisersBilled), 2)
 
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith({
-    $inc: { 'billingInfo.amountOwed': -1000000 } // billed all ten bucks
-  }))
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith({
-    $inc: { 'billingInfo.amountOwed': -500000 } // billed all 5 bucks 
-  }))
-})
-
-test('update advertiser balances | success for just one advertiser', async (t) => {
-  t.context.mongo.db.collection().aggregate().toArray.resolves([{ 
-    _id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-    amountToBill: 1001, // 99 microcents
-    customerId: 'kilua'
-  },
-  {
-    _id: 'aaaaaaaaaaaaaaaaaaaaaaaa',
-    amountToBill: 10, // 10 microcents
-    customerId: 'gon'
-  }])
-  t.context.mongo.db.collection().initializeUnorderedBulkOp().execute.returns({ nModified: 1 })
-  const res = await t.context.mongo.updateAdvertiserBalances()
-  t.is(res.error, false)
-  t.is(res.advertisersWhoOwe, 2)
-  t.is(res.advertisersToBill, 1)
-  t.is(res.advertisersUpdated, 1)
-
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith({
-    $inc: { 'billingInfo.amountOwed': -1000 } // billed just 1 cent, left 1 remainder
-  }))
+  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find.calledWith(
+    { _id: ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa') }
+  ))
+  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find.calledWith(
+    { _id: ObjectId('aaaaaaaaaaaaaaaaaaaaaaab') }
+  ))
+  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith(
+    { $inc: { 'billingInfo.amountOwed': -1000 } }
+  ))
+  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith(
+    { $inc: { 'billingInfo.amountOwed': -2000 } }
+  ))
 })

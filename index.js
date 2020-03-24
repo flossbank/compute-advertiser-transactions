@@ -1,8 +1,8 @@
 const AWS = require('aws-sdk')
-const stripe = require('stripe')
 const Bottleneck = require('bottleneck')
 const Config = require('./lib/config')
 const Db = require('./lib/mongo')
+const Stripe = require('./lib/stripe')
 const Process = require('./lib/process')
 
 const kms = new AWS.KMS({ region: 'us-west-2' })
@@ -13,13 +13,15 @@ const limiter = new Bottleneck({
 
 exports.handler = async () => {
   const config = new Config({ kms })
-  const stripeKey = await config.getStripeKey()
-  const db = new Db({ config, stripe, stripeKey, limiter })
+  const db = new Db({ config })
+  const stripe = new Stripe({ config, limiter })
   const log = console.log
+
   await db.connect()
+  await stripe.setup()
 
   try {
-    await Process.process({ db, log })
+    await Process.process({ db, stripe, log })
   } finally {
     db.close()
   }

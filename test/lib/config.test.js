@@ -22,13 +22,12 @@ test('getQueueUrl decrypts with kms', async (t) => {
     kms: {
       decrypt: () => ({
         promise: async () => ({
-          Plaintext: Buffer.from('blackjack')
+          Plaintext: Buffer.from('abc')
         })
       })
     }
   })
-
-  process.env.QUEUE_URL = Buffer.from('blackjack').toString('base64')
-  const queueUrl = await config.getQueueUrl()
-  t.deepEqual(queueUrl, 'blackjack')
+  
+  const queueUrl = config.getQueueUrl()
+  t.deepEqual(queueUrl, 'queue url')
 })

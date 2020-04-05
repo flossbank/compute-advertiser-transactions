@@ -24,12 +24,6 @@ test.beforeEach((t) => {
           customerId: 'gon'
         }])
       }),
-      initializeUnorderedBulkOp: sinon.stub().returns({
-        find: sinon.stub().returns({
-          updateOne: sinon.stub()
-        }),
-        execute: sinon.stub().returns({ nModified: 2 })
-      })
     })
   }
 })
@@ -55,30 +49,4 @@ test('close', async (t) => {
 test('get owing advertisers | calls mongo', async (t) => {
   await t.context.mongo.getOwingAdvertisers()
   t.true(t.context.mongo.db.collection().aggregate().toArray.calledOnce)
-})
-
-test('update advertiser balances | nothing to update', async (t) => {
-  const advertisersBilled = new Map()
-  t.is(await t.context.mongo.updateAdvertiserBalances(advertisersBilled), 0)
-})
-
-test('update advertiser balances | bulk updates', async (t) => {
-  const advertisersBilled = new Map()
-  advertisersBilled.set('aaaaaaaaaaaaaaaaaaaaaaaa', 1000)
-  advertisersBilled.set('aaaaaaaaaaaaaaaaaaaaaaab', 2000)
-
-  t.is(await t.context.mongo.updateAdvertiserBalances(advertisersBilled), 2)
-
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find.calledWith(
-    { _id: ObjectId('aaaaaaaaaaaaaaaaaaaaaaaa') }
-  ))
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find.calledWith(
-    { _id: ObjectId('aaaaaaaaaaaaaaaaaaaaaaab') }
-  ))
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith(
-    { $inc: { 'billingInfo.amountOwed': -1000 } }
-  ))
-  t.true(t.context.mongo.db.collection().initializeUnorderedBulkOp().find().updateOne.calledWith(
-    { $inc: { 'billingInfo.amountOwed': -2000 } }
-  ))
 })

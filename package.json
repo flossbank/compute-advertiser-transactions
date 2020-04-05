@@ -12,7 +12,6 @@
     "aws-sdk": "^2.543.0",
     "bottleneck": "^2.19.5",
     "mongodb": "^3.4.1",
-    "stripe": "^8.22.0",
     "uuid": "^7.0.3"
   },
   "repository": {

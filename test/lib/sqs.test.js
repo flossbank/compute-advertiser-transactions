@@ -9,7 +9,9 @@ test('sendMessage', async (t) => {
         promise: async () => (Promise.resolve('fishing poll'))
       })
     },
-    queueUrl: 'poopie url',
+    config: {
+      getQueueUrl: () => 'bandit url',
+    }
   })
 
   const payload = {
@@ -17,7 +19,7 @@ test('sendMessage', async (t) => {
   }
   const res = await sqs.sendMessage(payload)
   t.true(sqs.sqs.sendMessage.calledWith({ 
-    QueueUrl: 'poopie url', 
+    QueueUrl: 'bandit url', 
     MessageBody: JSON.stringify(payload) 
   }))
   t.deepEqual(res, 'fishing poll')

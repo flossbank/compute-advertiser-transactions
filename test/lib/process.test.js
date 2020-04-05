@@ -5,7 +5,6 @@ const Process = require('../../lib/process')
 test.beforeEach((t) => {
   t.context.db = {
     getOwingAdvertisers: sinon.stub().resolves([]),
-    updateAdvertiserBalances: sinon.stub().resolves(1)
   }
   t.context.sqs = {
     sendMessage: sinon.stub().resolves()
@@ -39,7 +38,6 @@ test('updates advertisers balances', async (t) => {
     limiter: t.context.limiter
   })
   t.true(t.context.db.getOwingAdvertisers.calledOnce)
-  t.true(t.context.db.updateAdvertiserBalances.calledOnce)
   t.deepEqual(result.advertisersBilled, expectedBilledAdvertisers)
 })
 
@@ -57,10 +55,9 @@ test('updates advertisers balances | errors with sqs', async (t) => {
   const log = sinon.stub()
   await Process.process({ db: t.context.db, sqs: t.context.sqs, log, limiter: t.context.limiter })
 
-  t.true(log.calledWith('summary: %d owed us, %d were billed, %d failed, %d were updated in db',
+  t.true(log.calledWith('summary: %d owed us, %d were billed, %d failed',
     2,
     1,
     1,
-    1
   ))
 })

@@ -1,5 +1,5 @@
 const test = require('ava')
-const Config = require('../lib/config')
+const Config = require('../../lib/config')
 
 test('getMongoUri decrypts with kms', async (t) => {
   const config = new Config({
@@ -17,18 +17,18 @@ test('getMongoUri decrypts with kms', async (t) => {
   t.deepEqual(mongoUri, 'abc')
 })
 
-test('getStripeKey decrypts with kms', async (t) => {
+test('getQueueUrl decrypts with kms', async (t) => {
   const config = new Config({
     kms: {
       decrypt: () => ({
         promise: async () => ({
-          Plaintext: Buffer.from('solitaire')
+          Plaintext: Buffer.from('blackjack')
         })
       })
     }
   })
 
-  process.env.STRIPE_SECRET_KEY = Buffer.from('solitaire').toString('base64')
-  const stripeKey = await config.getStripeKey()
-  t.deepEqual(stripeKey, 'solitaire')
+  process.env.QUEUE_URL = Buffer.from('blackjack').toString('base64')
+  const queueUrl = await config.getQueueUrl()
+  t.deepEqual(queueUrl, 'blackjack')
 })

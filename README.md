@@ -1,4 +1,3 @@
 # update-advertiser-balances
-regularly run lambda to update advertiser balances in stripe based on the number of impressions each of their campaigns
-have seen.
+regularly run lambda to generate transactions for all advertisers and pushes them into a queue to be processed later
 

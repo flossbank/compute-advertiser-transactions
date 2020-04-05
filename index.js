@@ -6,6 +6,7 @@ const Sqs = require('./lib/sqs')
 const Process = require('./lib/process')
 
 const kms = new AWS.KMS({ region: 'us-west-2' })
+const awsSqs = new AWS.SQS()
 const limiter = new Bottleneck({
   maxConcurrent: 1,
   minTime: 333
@@ -14,14 +15,14 @@ const limiter = new Bottleneck({
 exports.handler = async () => {
   const config = new Config({ kms })
   const db = new Db({ config })
-  const sqs = new Sqs({ config, sqs = new AWS.SQS() })
+  const queueUrl = await config.getQueueUrl()
+  const sqs = new Sqs({ queueUrl, sqs: awsSqs })
   const log = console.log
 
   await db.connect()
-  await stripe.setup()
 
   try {
-    await Process.process({ db, stripe, log, limiter, sqs })
+    await Process.process({ db, log, limiter, sqs })
   } finally {
     db.close()
   }

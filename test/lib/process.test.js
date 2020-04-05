@@ -10,6 +10,9 @@ test.beforeEach((t) => {
   t.context.sqs = {
     sendMessage: sinon.stub().resolves()
   }
+  t.context.limiter = {
+    schedule: async (cb) => cb()
+  }
 })
 
 test('updates advertisers balances', async (t) => {
@@ -29,25 +32,35 @@ test('updates advertisers balances', async (t) => {
 
   t.context.db.getOwingAdvertisers.resolves(advertisers)
 
-  const result = await Process.process({ db: t.context.db, sqs: t.context.sqs, log: () => {} })
+  const result = await Process.process({ 
+    db: t.context.db, 
+    sqs: t.context.sqs, 
+    log: () => {}, 
+    limiter: t.context.limiter
+  })
   t.true(t.context.db.getOwingAdvertisers.calledOnce)
   t.true(t.context.db.updateAdvertiserBalances.calledOnce)
   t.deepEqual(result.advertisersBilled, expectedBilledAdvertisers)
 })
 
-test('updateAdvertiserBalances', async (t) => {
-  
-
-  const result = await t.context.stripe.updateAdvertiserBalances(advertisers)
-  t.deepEqual(result.advertisersBilled, expectedBilledAdvertisers)
-})
-
 test('updates advertisers balances | errors with sqs', async (t) => {
+  const advertisers = [
+    { _id: '1', amountToBill: 99900, customerId: 'kilua' },
+    { _id: '2', amountToBill: 10000, customerId: 'gon' }, 
+  ]
+
+  t.context.db.getOwingAdvertisers.resolves(advertisers)
+
   const error = new Error('fake error')
   t.context.sqs.sendMessage.onCall(0).rejects(error)
   t.context.sqs.sendMessage.onCall(1).resolves()
   const log = sinon.stub()
-  await Process.process({ db: t.context.db, sqs: t.context.sqs, log })
+  await Process.process({ db: t.context.db, sqs: t.context.sqs, log, limiter: t.context.limiter })
 
-  t.true(log.calledWith({ advertisersErrored: JSON.stringify([...errors], Process.stringifyErrors) }))
+  t.true(log.calledWith('summary: %d owed us, %d were billed, %d failed, %d were updated in db',
+    2,
+    1,
+    1,
+    1
+  ))
 })

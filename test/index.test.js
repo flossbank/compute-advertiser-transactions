@@ -1,12 +1,14 @@
 const test = require('ava')
 const sinon = require('sinon')
 const Db = require('../lib/mongo')
+const Config = require('../lib/config')
 const Process = require('../lib/process')
 const index = require('../')
 
 test.before(() => {
   sinon.stub(Db.prototype, 'connect')
   sinon.stub(Db.prototype, 'close')
+  sinon.stub(Config.prototype, 'getQueueUrl').resolves('poopieurl')
   sinon.stub(Process, 'process').resolves()
 })
 

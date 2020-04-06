@@ -5,12 +5,6 @@ Parameters:
   MongoUri:
     Type: AWS::SSM::Parameter::Value<String>
     Default: '/api/db/mongo_uri'
-  StripeSecretKey:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: '/api/stripe/secret_key'
-  QueueUrl:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: '/api/sqs/advertiser_transactions_url'
 Resources:
   ComputeAdvertiserTransactionsFunction:
     Type: AWS::Serverless::Function
@@ -37,5 +31,3 @@ Resources:
       Environment:
         Variables:
           MONGO_URI: !Ref MongoUri
-          STRIPE_SECRET_KEY: !Ref StripeSecretKey
-          QUEUE_URL: !Ref QueueUrl

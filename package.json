@@ -1,29 +1,30 @@
 {
-  "name": "update-advertiser-balances",
+  "name": "compute-advertiser-transactions",
   "version": "1.0.0",
-  "description": "update-advertiser-balances",
+  "description": "compute-advertiser-transactions",
   "main": "index.js",
   "scripts": {
     "ci-tests": "nyc --reporter=cobertura ava -t | tap-xunit > TEST_RESULTS.xml",
-    "test": "ava -v"
+    "test": "ava -v",
+    "coverage": "nyc npm run test"
   },
   "dependencies": {
     "aws-sdk": "^2.543.0",
     "bottleneck": "^2.19.5",
     "mongodb": "^3.4.1",
-    "stripe": "^8.22.0"
+    "uuid": "^7.0.3"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/flossbank/update-advertiser-balances.git"
+    "url": "git+https://github.com/flossbank/compute-advertiser-transactions.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/flossbank/update-advertiser-balances/issues"
+    "url": "https://github.com/flossbank/compute-advertiser-transactions/issues"
   },
-  "homepage": "https://github.com/flossbank/update-advertiser-balances#readme",
+  "homepage": "https://github.com/flossbank/compute-advertiser-transactions#readme",
   "devDependencies": {
     "ava": "^3.5.1",
     "nyc": "^15.0.0",

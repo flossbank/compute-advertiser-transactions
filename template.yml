@@ -22,6 +22,7 @@ Resources:
       Runtime: nodejs10.x
       CodeUri: ./
       Policies:
+        - AmazonSQSFullAccess
         - Statement:
           - Effect: Allow
             Action:

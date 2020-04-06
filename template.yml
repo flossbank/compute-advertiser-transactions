@@ -12,7 +12,7 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<String>
     Default: '/api/sqs/advertiser_transactions_url'
 Resources:
-  CreateAdvertiserTransactionsFunction:
+  ComputeAdvertiserTransactionsFunction:
     Type: AWS::Serverless::Function
     Properties:
       Events: 
@@ -20,7 +20,7 @@ Resources:
           Properties:
             Description: Every week
             Enabled: true
-            Name: CreateAdvertiserTransactionsSchedule
+            Name: ComputeAdvertiserTransactionsSchedule
             Schedule: rate(7 days)
           Type: Schedule
       Timeout: 180

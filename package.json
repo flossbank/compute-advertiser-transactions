@@ -1,7 +1,7 @@
 {
-  "name": "create-advertiser-transactions",
+  "name": "compute-advertiser-transactions",
   "version": "1.0.0",
-  "description": "create-advertiser-transactions",
+  "description": "compute-advertiser-transactions",
   "main": "index.js",
   "scripts": {
     "ci-tests": "nyc --reporter=cobertura ava -t | tap-xunit > TEST_RESULTS.xml",
@@ -16,15 +16,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/flossbank/create-advertiser-transactions.git"
+    "url": "git+https://github.com/flossbank/compute-advertiser-transactions.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/flossbank/create-advertiser-transactions/issues"
+    "url": "https://github.com/flossbank/compute-advertiser-transactions/issues"
   },
-  "homepage": "https://github.com/flossbank/create-advertiser-transactions#readme",
+  "homepage": "https://github.com/flossbank/compute-advertiser-transactions#readme",
   "devDependencies": {
     "ava": "^3.5.1",
     "nyc": "^15.0.0",

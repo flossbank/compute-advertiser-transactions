@@ -27,7 +27,7 @@ test('getQueueUrl decrypts with kms', async (t) => {
       })
     }
   })
-  
+
   const queueUrl = config.getQueueUrl()
   t.deepEqual(queueUrl, 'https://sqs.us-west-2.amazonaws.com/011767500962/process-advertiser-transactions-input')
 })

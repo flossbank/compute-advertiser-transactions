@@ -4,17 +4,18 @@ const Process = require('../../lib/process')
 
 test.beforeEach((t) => {
   t.context.db = {
-    getOwingAdvertisers: sinon.stub().resolves([]),
+    getOwingAdvertisers: sinon.stub().resolves([])
   }
   t.context.sqs = {
-    sendMessage: sinon.stub().resolves()
+    sendMessage: sinon.stub().resolves(),
+    getMessageCount: sinon.stub().resolves(0)
   }
   t.context.limiter = {
     schedule: async (cb) => cb()
   }
 })
 
-test('updates advertisers balances', async (t) => {
+test('computes advertisers balances', async (t) => {
   const advertisers = [
     { _id: 'a1', amountToBill: 999, customerId: 'kilua' }, // 999mc
     { _id: 'a2', amountToBill: 10, customerId: 'gon' }, // 10mc
@@ -31,20 +32,20 @@ test('updates advertisers balances', async (t) => {
 
   t.context.db.getOwingAdvertisers.resolves(advertisers)
 
-  const result = await Process.process({ 
-    db: t.context.db, 
-    sqs: t.context.sqs, 
-    log: () => {}, 
+  const result = await Process.process({
+    db: t.context.db,
+    sqs: t.context.sqs,
+    log: () => {},
     limiter: t.context.limiter
   })
   t.true(t.context.db.getOwingAdvertisers.calledOnce)
   t.deepEqual(result.advertisersBilled, expectedBilledAdvertisers)
 })
 
-test('updates advertisers balances | errors with sqs', async (t) => {
+test('computes advertisers balances | errors with sqs', async (t) => {
   const advertisers = [
     { _id: '1', amountToBill: 99900, customerId: 'kilua' },
-    { _id: '2', amountToBill: 10000, customerId: 'gon' }, 
+    { _id: '2', amountToBill: 10000, customerId: 'gon' }
   ]
 
   t.context.db.getOwingAdvertisers.resolves(advertisers)
@@ -53,11 +54,21 @@ test('updates advertisers balances | errors with sqs', async (t) => {
   t.context.sqs.sendMessage.onCall(0).rejects(error)
   t.context.sqs.sendMessage.onCall(1).resolves()
   const log = sinon.stub()
-  await Process.process({ db: t.context.db, sqs: t.context.sqs, log, limiter: t.context.limiter })
+  await t.throwsAsync(() => Process.process({
+    db: t.context.db,
+    sqs: t.context.sqs,
+    log,
+    limiter: t.context.limiter
+  }))
+}, { message: 'advertisers errored; see log for details' })
 
-  t.true(log.calledWith('summary: %d owed us, %d were billed, %d failed',
-    2,
-    1,
-    1,
-  ))
+test('computes advertisers balances | messages in queue', async (t) => {
+  t.context.sqs.getMessageCount.resolves(1)
+  const log = sinon.stub()
+  await t.throwsAsync(() => Process.process({
+    db: t.context.db,
+    sqs: t.context.sqs,
+    log,
+    limiter: t.context.limiter
+  }))
 })

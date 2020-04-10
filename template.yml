@@ -5,6 +5,9 @@ Parameters:
   MongoUri:
     Type: AWS::SSM::Parameter::Value<String>
     Default: '/api/db/mongo_uri'
+  QueueUrl:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: '/lambdas/compute-advertiser-transactions/queue_url'
 Resources:
   ComputeAdvertiserTransactionsFunction:
     Type: AWS::Serverless::Function
@@ -32,3 +35,4 @@ Resources:
       Environment:
         Variables:
           MONGO_URI: !Ref MongoUri
+          QUEUE_URL: !Ref QueueUrl

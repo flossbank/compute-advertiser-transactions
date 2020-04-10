@@ -17,17 +17,8 @@ test('getMongoUri decrypts with kms', async (t) => {
   t.deepEqual(mongoUri, 'abc')
 })
 
-test('getQueueUrl decrypts with kms', async (t) => {
-  const config = new Config({
-    kms: {
-      decrypt: () => ({
-        promise: async () => ({
-          Plaintext: Buffer.from('abc')
-        })
-      })
-    }
-  })
-
-  const queueUrl = config.getQueueUrl()
-  t.deepEqual(queueUrl, 'https://sqs.us-west-2.amazonaws.com/011767500962/process-advertiser-transactions-input')
+test('getQueueUrl gets from env', async (t) => {
+  process.env.QUEUE_URL = 'papi'
+  const config = new Config({})
+  t.is(config.getQueueUrl(), 'papi')
 })

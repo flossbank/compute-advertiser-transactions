@@ -1,15 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Updates advertiser balances in stripe given their campaign impressions from the past period
+Description: Finds advertiser balances and sends off message to sqs queue to process the charge
 Parameters:
   MongoUri:
     Type: AWS::SSM::Parameter::Value<String>
     Default: '/api/db/mongo_uri'
-  StripeSecretKey:
+  QueueUrl:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: '/api/stripe/secret_key'
+    Default: '/lambdas/compute-advertiser-transactions/queue_url'
 Resources:
-  UpdateAdvertiserBalancesFunction:
+  ComputeAdvertiserTransactionsFunction:
     Type: AWS::Serverless::Function
     Properties:
       Events: 
@@ -17,7 +17,7 @@ Resources:
           Properties:
             Description: Every week
             Enabled: true
-            Name: UpdateAdvertiserBalancesSchedule
+            Name: ComputeAdvertiserTransactionsSchedule
             Schedule: rate(7 days)
           Type: Schedule
       Timeout: 180
@@ -25,6 +25,7 @@ Resources:
       Runtime: nodejs10.x
       CodeUri: ./
       Policies:
+        - AmazonSQSFullAccess
         - Statement:
           - Effect: Allow
             Action:
@@ -34,4 +35,4 @@ Resources:
       Environment:
         Variables:
           MONGO_URI: !Ref MongoUri
-          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          QUEUE_URL: !Ref QueueUrl
